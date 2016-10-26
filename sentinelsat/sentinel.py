@@ -7,9 +7,10 @@ import traceback
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta
 from os import remove
-from os.path import join, exists, getsize
+from os.path import join, exists, getsize, dirname, realpath
 import pycurl
 from time import sleep
+import pandas as pd
 
 import geojson
 import homura
@@ -129,13 +130,13 @@ class SentinelAPI(object):
 
     @property
     def url(self):
-        return urljoin(self.api_url, 'search?format=json&rows=15000')
+        return urljoin(self.api_url, 'search?format=json&rows=100')
 
-    def query(self, area, initial_date=None, end_date=datetime.now(), **keywords):
+    def query(self, area=None, point=None, initial_date=None, end_date=datetime.now(), **keywords):
         """Query the SciHub API with the coordinates of an area, a date interval
         and any other search keywords accepted by the SciHub API.
         """
-        query = self.format_query(area, initial_date, end_date, **keywords)
+        query = self.format_query(area, point, initial_date, end_date, **keywords)
         self.query_raw(query)
 
     def query_raw(self, query):
@@ -154,10 +155,12 @@ class SentinelAPI(object):
         return api_url
 
     @staticmethod
-    def format_query(area, initial_date=None, end_date=datetime.now(), **keywords):
+    def format_query(area=None, point=None, initial_date=None, end_date=datetime.now(), **keywords):
         """Create the URL to access the SciHub API, defining the max quantity of
-        results to 15000 items.
+        results to 100 items.
         """
+        assert (area is not None) | (point is not None), "Either an area or a point must be given."
+        
         if initial_date is None:
             initial_date = end_date - timedelta(hours=24)
 
@@ -165,13 +168,22 @@ class SentinelAPI(object):
             format_date(initial_date),
             format_date(end_date)
         )
-        query_area = ' AND (footprint:"Intersects(POLYGON((%s)))")' % area
-
+        
+        if area is not None:
+            query_area = ' AND (footprint:"Intersects(POLYGON((%s)))")' % area
+        else:
+            query_area = ''
+            
+        if point is not None:
+            query_point = ' AND (footprint:"intersects(%s)")' % point
+        else:
+            query_point = ''
+            
         filters = ''
         for kw in sorted(keywords.keys()):
             filters += ' AND (%s:%s)' % (kw, keywords[kw])
 
-        query = ''.join([acquisition_date, query_area, filters])
+        query = ''.join([acquisition_date, query_area, query_point, filters])
         return query
 
     def get_products(self):
@@ -449,26 +461,37 @@ class SentinelAPI(object):
         return kwargs_dict
 
 
-def get_coordinates(geojson_file, feature_number=0):
+def get_coordinates(geojson_file=None, tile=None, feature_number=0):
     """Return the coordinates of a polygon of a GeoJSON file.
 
     Parameters
     ----------
     geojson_file : str
         location of GeoJSON file_path
+    tile : str
+        Sentinel-2 tileID (can be given instead of geojson file). But if geojson_file is given, tile will be ignored.
     feature_number : int
         Feature to extract polygon from (in case of MultiPolygon
         FeatureCollection), defaults to first Feature
 
     Returns
     -------
-    polygon coordinates
-        string of comma separated coordinate tuples (lon, lat) to be used by SentinelAPI
+    string of comma separated coordinate tuples (lon, lat) for polygons or a single (lat, long) for points (if tile is given) to be used by SentinelAPI
     """
-    geojson_obj = geojson.loads(open(geojson_file, 'r').read())
-    coordinates = geojson_obj['features'][feature_number]['geometry']['coordinates'][0]
-    # precision of 7 decimals equals 1mm at the equator
-    coordinates = ['%.7f %.7f' % tuple(coord) for coord in coordinates]
+    assert (geojson_file is not None) | (tile is not None), "Either geojson_file or tile must be provided."
+    
+    if geojson_file is not None:
+        geojson_obj = geojson.loads(open(geojson_file, 'r').read())
+        coordinates = geojson_obj['features'][feature_number]['geometry']['coordinates'][0]
+        # precision of 7 decimals equals 1mm at the equator
+        coordinates = ['%.7f %.7f' % tuple(coord) for coord in coordinates]
+    elif tile is not None:
+        csv_file = "{0}/data/tile_centroids.csv".format( dirname(realpath(__file__)) )
+        tile_centroids = pd.read_csv(csv_file)
+        tile_subset = tile_centroids[ tile_centroids['tile'] == tile ]
+        coordinates = [ float(tile_subset['lat']), float(tile_subset['lon']) ]
+        coordinates = ['%.7f' % coord for coord in coordinates]
+        
     return ','.join(coordinates)
 
 
