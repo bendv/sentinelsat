@@ -10,7 +10,6 @@ from os import remove
 from os.path import join, exists, getsize, dirname, realpath
 import pycurl
 from time import sleep
-import pandas as pd
 
 import geojson
 import homura
@@ -27,6 +26,12 @@ try:
     import certifi
 except ImportError:
     certifi = None
+    
+try:
+    import pandas as pd
+    hasPandas = True
+except ImportError:
+    hasPandas = False
 
 
 class SentinelAPIError(Exception):
@@ -478,7 +483,7 @@ def get_coordinates(geojson_file=None, tile=None, feature_number=0):
     -------
     string of comma separated coordinate tuples (lon, lat) for polygons or a single (lat, long) for points (if tile is given) to be used by SentinelAPI
     """
-    assert (geojson_file is not None) | (tile is not None), "Either geojson_file or tile must be provided."
+    assert (geojson_file is not None) | (tile is not None), "Either geojson_file or tile must be provided."      
     
     if geojson_file is not None:
         geojson_obj = geojson.loads(open(geojson_file, 'r').read())
@@ -486,6 +491,7 @@ def get_coordinates(geojson_file=None, tile=None, feature_number=0):
         # precision of 7 decimals equals 1mm at the equator
         coordinates = ['%.7f %.7f' % tuple(coord) for coord in coordinates]
     elif tile is not None:
+        assert hasPandas, "pandas must be installed to use 'tile' option."
         csv_file = "{0}/data/tile_centroids.csv".format( dirname(realpath(__file__)) )
         tile_centroids = pd.read_csv(csv_file)
         tile_subset = tile_centroids[ tile_centroids['tile'] == tile ]
