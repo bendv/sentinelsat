@@ -87,9 +87,9 @@ def search(
         search_kwargs.update(dict([i.split('=') for i in query.split(',')]))
 
     if tile:
-        api.query(point = get_coordinates(tile = tile), start, end, **search_kwargs)
+        api.query(point = get_coordinates(tile = tile), initial_date = start, end_date = end, **search_kwargs)
     elif geojson:
-        api.query(area = get_coordinates(geojson_file = geojson), start, end, **search_kwargs)
+        api.query(area = get_coordinates(geojson_file = geojson), initial_date = start, end_date = end, **search_kwargs)
     else:
         raise ValueError("Either a --geojson or --tile arguments must be given.")
     
