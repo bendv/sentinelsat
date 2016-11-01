@@ -14,7 +14,13 @@ def cli():
 @cli.command()
 @click.argument('user', type=str, metavar='<user>')
 @click.argument('password', type=str, metavar='<password>')
-@click.argument('geojson', type=click.Path(exists=True), metavar='<geojson>') ### TODO: make this optional if a tile ID is given
+@click.option(
+    '--tile', '-t', type=str,
+    help="Sentinel-2 tile ID"
+)
+@click.option(
+    '--geojson', '-g', type=click.Path(exists=True),
+    help='Path to geojson point or polygon file.')
 @click.option(
     '--start', '-s', type=str, default='NOW-1DAY',
     help='Start date of the query in the format YYYYMMDD.')
@@ -76,12 +82,17 @@ def search(
         search_kwargs.update({"platformname": "Sentinel-2"})
     elif sentinel1:
         search_kwargs.update({"platformname": "Sentinel-1"})
-
+        
     if query is not None:
         search_kwargs.update(dict([i.split('=') for i in query.split(',')]))
 
-    api.query(get_coordinates(geojson), start, end, **search_kwargs)
-
+    if tile:
+        api.query(point = get_coordinates(tile = tile), start, end, **search_kwargs)
+    elif geojson:
+        api.query(area = get_coordinates(geojson_file = geojson), start, end, **search_kwargs)
+    else:
+        raise ValueError("Either a --geojson or --tile arguments must be given.")
+    
     if footprints is True:
         footprints_geojson = api.get_footprints()
         with open(os.path.join(path, "search_footprints.geojson"), "w") as outfile:
