@@ -63,7 +63,7 @@ def cli():
     '-c', '--cloud', type=int,
     help='Maximum cloud cover in percent. (Automatically sets --sentinel2)')
 def search(
-        user, password, geojson, start, end, download, md5,
+        user, password, tile, geojson, start, end, download, md5,
         sentinel1, sentinel2, cloud, footprints, path, query, url):
     """Search for Sentinel products and, optionally, download all the results
     and/or create a geojson file with the search result footprints.
